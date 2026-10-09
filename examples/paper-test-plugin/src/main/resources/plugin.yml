@@ -1,0 +1,5 @@
+name: LicenceDemo
+version: '${project.version}'
+main: com.example.licensedemo.LicenceDemoPlugin
+api-version: '1.21'
+description: Minimal example of a Peakstone licence check.

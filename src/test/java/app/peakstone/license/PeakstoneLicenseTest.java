@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,34 @@ class PeakstoneLicenseTest extends ServerTestBase {
     private static final long DAY = 86_400L;
 
     // ---- live, valid ------------------------------------------------------------------------
+
+    /**
+     * A complimentary key as Peakstone answers it (server: kind "complimentary", plan "Complimentary", periodEnd = the
+     * key's end date, expiresAt capped at it). Older payload readers must accept the extra field, and once the end
+     * date passes the cached answer must no longer be used offline.
+     */
+    @Test
+    void complimentaryAnswerIsValidAndItsCacheEndsWithTheKey() throws IOException {
+        long end = START.getEpochSecond() + 3600;
+        fake.respond(p -> {
+            p.put("plan", "Complimentary");
+            p.put("kind", "complimentary");
+            p.put("expiresAt", end);
+            p.put("periodEnd", end);
+            return p;
+        });
+        PeakstoneLicense license = license();
+        Valid valid = as(Valid.class, license.verify());
+        assertEquals("Complimentary", valid.plan());
+        assertEquals(Instant.ofEpochSecond(end), valid.expiresAt());
+        assertEquals(Instant.ofEpochSecond(end), valid.periodEnd());
+
+        fake.respondRaw(r -> Reply.status(503));
+        clock.advance(Duration.ofMinutes(59));
+        assertEquals(Instant.ofEpochSecond(end), as(Offline.class, license.verify()).expiresAt());
+        clock.advance(Duration.ofMinutes(2));
+        as(Unavailable.class, license.verify());
+    }
 
     @Test
     void validLiveResponse() throws IOException {

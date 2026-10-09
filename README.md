@@ -304,7 +304,8 @@ public final class MyPlugin extends JavaPlugin {
 }
 ```
 
-This example was compile-checked against `paper-api` 1.21.11 (Java 21) and 26.2 (Java 25).
+This example was compile-checked against `paper-api` 1.21.11 (Java 21) and 26.2 (Java 25). A complete Maven project
+built from it, run end to end on a Paper 1.21.11 server, is in [`examples/paper-test-plugin`](examples/paper-test-plugin).
 
 ## Velocity plugin example
 
@@ -487,8 +488,9 @@ Response `200`:
 }
 ```
 
-When the licence is not valid, `valid` is `false`, `status` is one of `unknown`, `inactive`, `revoked` or
-`wrong_product`, `reason` is a short sentence, and the response is still signed.
+When the licence is not valid, `valid` is `false`, `status` is one of `unknown`, `inactive`, `revoked`,
+`wrong_product` or `limit_reached`, `reason` is a short sentence, and the response is still signed. Answers may carry
+extra fields (for example `kind`: `"purchase"` or `"complimentary"`); the SDK ignores fields it does not know.
 
 Other statuses (`429` with a `retry-after` header in seconds, `400`, `5xx`) are not signed and are treated as "could
 not verify now".

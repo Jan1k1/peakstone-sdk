@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.example</groupId>
+  <artifactId>licence-demo</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>LicenceDemo</name>
+  <description>Minimal Paper plugin that checks a Peakstone licence key with the Peakstone licence SDK.</description>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+
+  <properties>
+    <!-- Java 21 bytecode: loads on Paper 1.21.x (Java 21) and on newer servers (Java 25). -->
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
+    <paper.version>1.21.11-R0.1-SNAPSHOT</paper.version>
+    <peakstone.sdk.version>0.2.0</peakstone.sdk.version>
+
+    <!--
+      Test-only overrides, written into peakstone-build.properties inside the jar. Empty in every normal build, which
+      means: https://peakstone.app, Peakstone's production key, checks every 6 hours. Only the local-peakstone profile
+      below fills them, and it refuses to build without an explicit URL and key. See README.md.
+    -->
+    <peakstone.test.baseUrl/>
+    <peakstone.test.keyId/>
+    <peakstone.test.publicKey/>
+    <peakstone.test.checkSeconds/>
+  </properties>
+
+  <repositories>
+    <repository>
+      <id>papermc</id>
+      <url>https://repo.papermc.io/repository/maven-public/</url>
+    </repository>
+    <!--
+      The SDK is on GitHub Packages (needs a token with read:packages, see https://peakstone.app/docs/licensing),
+      or `mvn install` it from https://github.com/Jan1k1/peakstone-sdk into your local repository.
+    -->
+    <repository>
+      <id>peakstone</id>
+      <url>https://maven.pkg.github.com/Jan1k1/peakstone-sdk</url>
+    </repository>
+  </repositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.papermc.paper</groupId>
+      <artifactId>paper-api</artifactId>
+      <version>${paper.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>app.peakstone</groupId>
+      <artifactId>peakstone-license</artifactId>
+      <version>${peakstone.sdk.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.1</version>
+        <configuration>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+            <arg>-Werror</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+      </plugin>
+      <!-- Bundle the SDK into the plugin jar under our own package, as the Peakstone docs describe. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.2</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <relocations>
+                <relocation>
+                  <pattern>app.peakstone.license</pattern>
+                  <shadedPattern>com.example.licensedemo.libs.peakstone</shadedPattern>
+                </relocation>
+              </relocations>
+              <filters>
+                <filter>
+                  <artifact>app.peakstone:peakstone-license</artifact>
+                  <excludes>
+                    <!-- the SDK's JPMS descriptor must not end up in the plugin jar -->
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      Builds a jar that checks licences against a local Peakstone (for example `npm run dev`) instead of
+      peakstone.app. Never ship a jar built with this profile.
+
+        mvn package -Plocal-peakstone -Dpeakstone.test.baseUrl=http://localhost:3000 \
+            -Dpeakstone.test.publicKey=<key from http://localhost:3000/api/v1/licenses/keys>
+    -->
+    <profile>
+      <id>local-peakstone</id>
+      <properties>
+        <peakstone.test.keyId>ps-1</peakstone.test.keyId>
+        <peakstone.test.checkSeconds>20</peakstone.test.checkSeconds>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-enforcer-plugin</artifactId>
+            <version>3.6.2</version>
+            <executions>
+              <execution>
+                <id>require-test-settings</id>
+                <goals><goal>enforce</goal></goals>
+                <configuration>
+                  <rules>
+                    <requireProperty>
+                      <property>peakstone.test.baseUrl</property>
+                      <regex>http://(localhost|127\.0\.0\.1)(:\d+)?/?</regex>
+                      <regexMessage>peakstone.test.baseUrl must be a local http://localhost:PORT or http://127.0.0.1:PORT address</regexMessage>
+                    </requireProperty>
+                    <requireProperty>
+                      <property>peakstone.test.publicKey</property>
+                      <regex>[A-Za-z0-9+/=_-]{40,}</regex>
+                      <regexMessage>peakstone.test.publicKey must be the local server's key from /api/v1/licenses/keys</regexMessage>
+                    </requireProperty>
+                  </rules>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
